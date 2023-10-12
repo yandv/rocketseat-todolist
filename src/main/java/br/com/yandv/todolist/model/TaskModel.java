@@ -36,4 +36,9 @@ public class TaskModel {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
+    public void setUserId(UUID userId) {
+        this.userId = userId;
+        this.startedAt = LocalDateTime.now();
+    }
+
 }

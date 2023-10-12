@@ -18,7 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.google.gson.JsonArray;
 
 import br.com.yandv.todolist.model.TaskModel;
+import br.com.yandv.todolist.model.UserModel;
 import br.com.yandv.todolist.repository.ITaskRepository;
+import br.com.yandv.todolist.repository.IUserRepository;
 import br.com.yandv.todolist.utils.JsonBuilder;
 
 @RestController
@@ -27,6 +29,9 @@ public class TaskController {
 
     @Autowired
     private ITaskRepository taskRepository;
+
+    @Autowired
+    private IUserRepository userRepository;
 
     @GetMapping("/")
     public ResponseEntity<String> getTasks(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int itemsPerPage) {
@@ -81,6 +86,28 @@ public class TaskController {
             jsonBuilder.addProperty("finishedAt", taskModel.getFinishedAt().toString());
 
         return ResponseEntity.status(HttpStatus.OK).body(jsonBuilder.toString());
+    }
+
+    @PostMapping("/{taskId}")
+    public ResponseEntity<String> takeTask(@PathVariable UUID taskId, @RequestBody UUID userId) {
+        UserModel userModel = this.userRepository.findById(userId).orElse(null);
+
+        if (userModel == null)
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new JsonBuilder()
+                    .addProperty("errorMessage", "The user with id " + userId.toString() + " was not found.")
+                    .toString());
+
+        TaskModel taskModel = this.taskRepository.findById(taskId).orElse(null);
+
+        if (taskModel == null)
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new JsonBuilder()
+                    .addProperty("errorMessage", "The task with id " + taskId.toString() + " was not found.")
+                    .toString());
+        
+        taskModel.setUserId(userId);
+        this.taskRepository.save(taskModel);
+
+        return ResponseEntity.status(HttpStatus.OK).body("OK");
     }
 
     @PostMapping("/")
