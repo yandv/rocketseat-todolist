@@ -24,11 +24,16 @@ public class AuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        var authorization = request.getHeader("Authorization");
+        if (request.getRequestURI().equals("/api/v1/users/") && request.getMethod().equals("POST")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String authorization = request.getHeader("Authorization");
         
-        if (authorization == null) {
+        if (authorization == null || !authorization.startsWith("Basic ") || authorization.split(" ").length < 1) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, new JsonBuilder()
-                .addProperty("errorMessage", "No authorization token provided.")
+                .addProperty("errorMessage", "Credentials provided on authorization token are invalid.")
                 .toString());
             return;
         }
