@@ -1,5 +1,7 @@
 package br.com.yandv.todolist.controller;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,6 +25,8 @@ import br.com.yandv.todolist.model.UserModel;
 import br.com.yandv.todolist.repository.ITaskRepository;
 import br.com.yandv.todolist.repository.IUserRepository;
 import br.com.yandv.todolist.utils.JsonBuilder;
+import br.com.yandv.todolist.utils.Utils;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/v1/tasks")
@@ -34,12 +39,12 @@ public class TaskController {
     private IUserRepository userRepository;
 
     @GetMapping("/")
-    public ResponseEntity<String> getTasks(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int itemsPerPage) {
-        Page<TaskModel> tasksPage = this.taskRepository.findAll(PageRequest.of(page, Math.min(itemsPerPage, 50)));
+    public ResponseEntity<String> getTasks(HttpServletRequest request) {
+        List<TaskModel> tasksPage = this.taskRepository.findByUserId((UUID) request.getAttribute("userId"));
 
         JsonArray jsonArray = new JsonArray();
 
-        for (TaskModel taskModel : tasksPage.getContent()) {
+        for (TaskModel taskModel : tasksPage) {
             JsonBuilder jsonBuilder = new JsonBuilder();
 
             jsonBuilder.addProperty("uniqueId", taskModel.getUniqueId().toString());
@@ -88,30 +93,32 @@ public class TaskController {
         return ResponseEntity.status(HttpStatus.OK).body(jsonBuilder.toString());
     }
 
-    @PostMapping("/{taskId}")
-    public ResponseEntity<String> takeTask(@PathVariable UUID taskId, @RequestBody UUID userId) {
-        UserModel userModel = this.userRepository.findById(userId).orElse(null);
+    @PutMapping("/{id}")
+    public ResponseEntity<String> putTaskById(@RequestBody TaskModel taskModel, @PathVariable UUID id, HttpServletRequest request) {
+        TaskModel task = this.taskRepository.findById(id).orElse(null);
 
-        if (userModel == null)
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new JsonBuilder()
-                    .addProperty("errorMessage", "The user with id " + userId.toString() + " was not found.")
+        if(!task.getUserId().equals((UUID) request.getAttribute("userId")))
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new JsonBuilder()
+                    .addProperty("errorMessage", "You don't have permission to update this task.")
                     .toString());
 
-        TaskModel taskModel = this.taskRepository.findById(taskId).orElse(null);
+        Utils.copyNonNullProperties(taskModel, task);
 
-        if (taskModel == null)
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new JsonBuilder()
-                    .addProperty("errorMessage", "The task with id " + taskId.toString() + " was not found.")
-                    .toString());
-        
-        taskModel.setUserId(userId);
-        this.taskRepository.save(taskModel);
+        task = this.taskRepository.save(task);
 
-        return ResponseEntity.status(HttpStatus.OK).body("OK");
+        return ResponseEntity.status(HttpStatus.OK).body(new JsonBuilder()
+                .addProperty("uniqueId", task.getUniqueId().toString())
+                .addProperty("title", task.getTitle())
+                .addProperty("description", task.getDescription())
+                .addProperty("startedAt", task.getStartedAt().toString())
+                .addProperty("finishedAt", task.getFinishedAt().toString())
+                .addProperty("userId", task.getUserId().toString())
+                .addProperty("createdAt", task.getCreatedAt().toString())
+                .toString());
     }
 
     @PostMapping("/")
-    public ResponseEntity<String> createTask(@RequestBody TaskModel taskModel) {
+    public ResponseEntity<String> createTask(@RequestBody TaskModel taskModel, HttpServletRequest request) {
         if (taskModel.getTitle() == null || taskModel.getTitle().isEmpty()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new JsonBuilder()
                     .addProperty("errorMessage", "The title is required.")
@@ -124,12 +131,31 @@ public class TaskController {
                     .toString());
         }
 
+        taskModel.setUserId((UUID) request.getAttribute("userId"));
+
+        LocalDateTime currentTime = LocalDateTime.now();
+
+        if (currentTime.isAfter(taskModel.getStartedAt()) || currentTime.isAfter(taskModel.getFinishedAt())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new JsonBuilder()
+                    .addProperty("errorMessage", "The startedAt must be after the current time.")
+                    .toString());
+        }
+
+        if (taskModel.getStartedAt().isAfter(taskModel.getFinishedAt())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new JsonBuilder()
+                    .addProperty("errorMessage", "The startedAt must be before the finishedAt.")
+                    .toString());
+        }
+
         TaskModel createdTaskModel = this.taskRepository.save(taskModel);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(new JsonBuilder()
                 .addProperty("uniqueId", createdTaskModel.getUniqueId().toString())
                 .addProperty("title", createdTaskModel.getTitle())
                 .addProperty("description", createdTaskModel.getDescription())
+                .addProperty("startedAt", createdTaskModel.getStartedAt().toString())
+                .addProperty("finishedAt", createdTaskModel.getFinishedAt().toString())
+                .addProperty("userId", createdTaskModel.getUserId().toString())
                 .addProperty("createdAt", createdTaskModel.getCreatedAt().toString())
                 .toString());
     }

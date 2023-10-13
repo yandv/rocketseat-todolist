@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @AllArgsConstructor
@@ -21,6 +22,7 @@ public class TaskModel {
     
     @Id
     @GeneratedValue(generator = "UUID")
+    @Setter
     private UUID uniqueId;
 
     @Column(length = 64)

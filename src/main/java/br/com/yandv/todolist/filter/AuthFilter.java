@@ -48,20 +48,14 @@ public class AuthFilter extends OncePerRequestFilter {
 
         UserModel userModel = this.userRepository.findByUserName(userName);
 
-        if (userModel == null) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, new JsonBuilder()
-                .addProperty("errorMessage", "Credentials provided on authorization token are invalid.")
-                .toString());
-            return;
-        }
-
-        if (!userModel.getPassWord().equals(passWord)) {
+        if (userModel == null || !userModel.getPassWord().equals(passWord)) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, new JsonBuilder()
                 .addProperty("errorMessage", "Credentials provided on authorization token are invalid.")
                 .toString());
             return;
         }
         
+        request.setAttribute("userId", userModel.getUniqueId());
         filterChain.doFilter(request, response);
     }
 }

@@ -76,7 +76,7 @@ public class UserController {
                             .toString());
         }
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(new JsonBuilder()
+        return ResponseEntity.status(HttpStatus.OK).body(new JsonBuilder()
                 .addProperty("uniqueId", userModel.getUniqueId().toString())
                 .addProperty("userName", userModel.getUserName())
                 .toString());
